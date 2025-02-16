@@ -2,7 +2,7 @@ import subprocess
 import sys
 
 # Number of times to run the game
-num_runs = 2
+num_runs = 10
 wins = 0
 ties = 0
 
