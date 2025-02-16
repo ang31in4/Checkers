@@ -2,8 +2,9 @@ import subprocess
 import sys
 
 # Number of times to run the game
-num_runs = 100
+num_runs = 2
 wins = 0
+ties = 0
 
 # Command to run AI_Runner.py
 if int(sys.argv[1]) == 1:
@@ -34,7 +35,11 @@ for i in range(num_runs):
     # Check if Player 1 won
     if win_condition in result.stdout:
         wins += 1
+    if "Tie" in result.stdout:
+        ties += 1
 
 # Print the results
 print(f"\nYour AI won {wins} out of {num_runs} games.")
 print(f"Win rate: {(wins / num_runs) * 100:.2f}%")
+print(f"\nYour AI won and tied {wins + ties} out of {num_runs} games.")
+print(f"Win and tie rate: {((wins + ties) / num_runs) * 100:.2f}%")
