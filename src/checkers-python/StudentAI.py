@@ -93,7 +93,11 @@ class StudentAI():
                     ai_pieces += 1
                     ai_score += 5
                     if 2 <= r < self.row - 2:  # Reward center control
-                        ai_score += 2  
+                        ai_score += 2
+                    if c == 0 or c == self.col - 1: # Penalize pieces on the leftmost or rightmost columns
+                        ai_score -= 3
+                    if r < 2 or r > self.row - 3: # Encourage backline or deep push
+                        ai_score += 4
                 elif piece == self.color + 2:  # AI's king
                     ai_kings += 1
                     ai_score += 10
