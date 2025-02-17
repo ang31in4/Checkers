@@ -72,6 +72,49 @@ class StudentAI():
         self.board.make_move(best_move, self.color)
         return best_move
 
+    def evaluate_board(self):
+        """
+        Evaluates the current board state using a simple heuristic.
+        Higher scores favor the AI, lower scores favor the opponent.
+        
+        :return: A numerical score representing board strength.
+        """
+        ai_pieces = 0
+        ai_kings = 0
+        opponent_pieces = 0
+        opponent_kings = 0
+        ai_score = 0
+        opponent_score = 0
+
+        for r in range(self.row):
+            for c in range(self.col):
+                piece = self.board.board[r][c]  # Get the piece at position (r, c)
+                if piece == self.color:  # AI's normal piece
+                    ai_pieces += 1
+                    ai_score += 5
+                    if 2 <= r < self.row - 2:  # Reward center control
+                        ai_score += 2  
+                elif piece == self.color + 2:  # AI's king
+                    ai_kings += 1
+                    ai_score += 10
+                elif piece == self.opponent[self.color]:  # Opponent's normal piece
+                    opponent_pieces += 1
+                    opponent_score += 5
+                    if 2 <= r < self.row - 2:
+                        opponent_score += 2  
+                elif piece == self.opponent[self.color] + 2:  # Opponent's king
+                    opponent_kings += 1
+                    opponent_score += 10
+
+        # Additional scoring for captures
+        possible_moves = self.board.get_all_possible_moves(self.color)
+        for move_list in possible_moves:
+            for move in move_list:
+                if len(move[1]) > 1:  # Multi-jump capture
+                    ai_score += 15  
+
+        return ai_score - opponent_score  # Positive is good for AI, negative is bad
+
     def simulate_game(self, move):
         """
         Runs a simulation of a checkers game using the parent node as the first move.
@@ -82,6 +125,11 @@ class StudentAI():
         temp_board = copy.deepcopy(self.board) # Create a copy of current board
         temp_board.make_move(move, self.color) # Make parameter node AI's first move
         current_player = self.opponent[self.color] # Give opponent next move
+
+        # **Early pruning using evaluation function**
+        temp_score = self.evaluate_board()  
+        if temp_score < -10:  # If the move results in a bad position, assume a loss
+            return self.opponent[self.color]
 
         # Keep playing moves until there is a winner or tie
         while True:
