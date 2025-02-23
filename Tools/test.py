@@ -1,25 +1,29 @@
 import subprocess
 import sys
+import os
 
 # Number of times to run the game
 num_runs = 20
 wins = 0
 ties = 0
 
+working_path = os.getcwd()
+home_path = os.path.dirname(working_path)
+
 # Command to run AI_Runner.py
 if int(sys.argv[1]) == 1:
     command = [
         "python3", "AI_Runner.py", "8", "8", "3", "l",
-        "$HOME/cs171/CS171-Checkers/src/checkers-python/main.py",
-        "$HOME/cs171/CS171-Checkers/Tools/Sample_AIs/Random_AI/main.py"
+        os.path.join(home_path, "src/checkers-python/main.py"),
+        os.path.join(home_path, "Tools/Sample_AIs/Poor_AI/main.py")
     ]
     win_condition = "player 1 wins"
 
 elif int(sys.argv[1]) == 2:
     command = [
         "python3", "AI_Runner.py", "8", "8", "3", "l",
-        "$HOME/cs171/CS171-Checkers/Tools/Sample_AIs/Random_AI/main.py",
-        "$HOME/cs171/CS171-Checkers/src/checkers-python/main.py"
+        os.path.join(home_path, "Tools/Sample_AIs/Poor_AI/main.py"),
+        os.path.join(home_path, "src/checkers-python/main.py")
     ]
     win_condition = "player 2 wins"
 else:
