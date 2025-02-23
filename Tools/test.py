@@ -3,7 +3,7 @@ import sys
 import os
 
 # Number of times to run the game
-num_runs = 20
+num_runs = 5
 wins = 0
 ties = 0
 
