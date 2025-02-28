@@ -1,6 +1,8 @@
 import time
 import random
 import copy
+import math
+from collections import defaultdict
 from BoardClasses import Move
 from BoardClasses import Board
 # The following part should be completed by students.
@@ -25,50 +27,80 @@ class StudentAI():
 
         return self.mcts()
 
+    @staticmethod
+    def ucb(win_rate, total_simulations, parent_simulations, c=1.41):
+        """
+        Calculate the UCB1 score for a move.
+        :param win_rate: Win rate of the move
+        :param total_simulations: Total simulations for this move
+        :param parent_simulations: Total simulations for the parent node
+        :param c: Exploration constant
+        :return: UCB1 score
+        """
+        if total_simulations == 0:
+            return float('inf')  # Prioritize unexplored moves
+        return win_rate + c * math.sqrt(math.log(parent_simulations) / total_simulations)
 
     def mcts(self):
         """
-        Uses Monte Carlo Tree to determine next best move. A number of simulations
-        are ran for each possible move and a win-rate is determined. The move with
-        the highest win-rate is chosen.
+        Uses Monte Carlo Tree Search with UCB1 to determine the next best move.
 
-        :return: best move found through MCTS
+        :return: Best move found through MCTS
         """
         possible_moves = self.board.get_all_possible_moves(self.color)
         num_moves = sum(len(move_list) for move_list in possible_moves)
 
+        # If only one move is available, return it immediately
+        if num_moves == 1:
+            # Find the move and return it immediately
+            for move_list in possible_moves:
+                if move_list:  # Non-empty list
+                    return move_list[0]  # Return the first (and only) move
+
         # Set up MCTS parameters
-        best_move = None
-        best_win_rate = -1
-        simulations_total = 1000
-        simulations_per_move = simulations_total // num_moves
         time_limit = 15
 
+        # Start time
         start_time = time.time()
 
-        for moves in possible_moves:
-            for move in moves:
-                wins = 0
-                total_simulations = 0
+        # Tracking statistics for UCB1
+        wins_per_move = defaultdict(int)
+        simulations_per_move = defaultdict(int)
+        parent_simulations = 0
 
-                # Run simulations for every possible move, while keeping under time limit
-                while total_simulations < simulations_per_move and (time.time() - start_time) < time_limit:
-                    winner = self.simulate_game(move)
-                    if winner == self.color:
-                        wins += 1
-                    total_simulations += 1
+        # Run MCTS while under time limit
+        while (time.time() - start_time) < time_limit:
+            best_ucb = -float('inf')
+            selected_move = None
 
-                # Calculate win rate
-                if total_simulations > 0:
-                    win_rate = wins / total_simulations
-                else:
-                    win_rate = 0
+            # Calculate UCB1 scores for all moves
+            for moves in possible_moves:
+                for move in moves:
+                    # Calculate UCB1 for this move
+                    if simulations_per_move[move] > 0:
+                        win_rate = wins_per_move[move] / simulations_per_move[move]
+                    else:
+                        win_rate = 0
 
-                if win_rate > best_win_rate:
-                    best_win_rate = win_rate
-                    best_move = move
+                    ucb_score = self.ucb(win_rate, simulations_per_move[move], parent_simulations)
 
-        # Make move
+                    # Select the move with the highest UCB1 score
+                    if ucb_score > best_ucb:
+                        best_ucb = ucb_score
+                        selected_move = move
+
+            # Run a simulation for the selected move
+            winner = self.simulate_game(selected_move)
+            if winner == self.color:
+                wins_per_move[selected_move] += 1
+
+            simulations_per_move[selected_move] += 1
+            parent_simulations += 1
+
+        # Choose the move with the highest win rate
+        best_move = max(wins_per_move, key=lambda m: wins_per_move[m] / simulations_per_move[m])
+
+        # Make the best move
         self.board.make_move(best_move, self.color)
         return best_move
 
@@ -76,7 +108,7 @@ class StudentAI():
         """
         Evaluates the current board state using a simple heuristic.
         Higher scores favor the AI, lower scores favor the opponent.
-        
+
         :return: A numerical score representing board strength.
         """
         ai_pieces = 0
@@ -94,9 +126,9 @@ class StudentAI():
                     ai_score += 5
                     if 2 <= r < self.row - 2:  # Reward center control
                         ai_score += 2
-                    if c == 0 or c == self.col - 1: # Penalize pieces on the leftmost or rightmost columns
+                    if c == 0 or c == self.col - 1:  # Penalize pieces on the leftmost or rightmost columns
                         ai_score -= 3
-                    if r < 2 or r > self.row - 3: # Encourage backline or deep push
+                    if r < 2 or r > self.row - 3:  # Encourage backline or deep push
                         ai_score += 4
                 elif piece == self.color + 2:  # AI's king
                     ai_kings += 1
@@ -105,7 +137,7 @@ class StudentAI():
                     opponent_pieces += 1
                     opponent_score += 5
                     if 2 <= r < self.row - 2:
-                        opponent_score += 2  
+                        opponent_score += 2
                 elif piece == self.opponent[self.color] + 2:  # Opponent's king
                     opponent_kings += 1
                     opponent_score += 10
@@ -115,7 +147,7 @@ class StudentAI():
         for move_list in possible_moves:
             for move in move_list:
                 if len(move[1]) > 1:  # Multi-jump capture
-                    ai_score += 15  
+                    ai_score += 15
 
         return ai_score - opponent_score  # Positive is good for AI, negative is bad
 
@@ -126,12 +158,12 @@ class StudentAI():
         :param move: parent node move
         :return: the number of the player that won
         """
-        temp_board = copy.deepcopy(self.board) # Create a copy of current board
-        temp_board.make_move(move, self.color) # Make parameter node AI's first move
-        current_player = self.opponent[self.color] # Give opponent next move
+        temp_board = copy.deepcopy(self.board)  # Create a copy of current board
+        temp_board.make_move(move, self.color)  # Make parameter node AI's first move
+        current_player = self.opponent[self.color]  # Give opponent next move
 
         # **Early pruning using evaluation function**
-        temp_score = self.evaluate_board()  
+        temp_score = self.evaluate_board()
         if temp_score < -10:  # If the move results in a bad position, assume a loss
             return self.opponent[self.color]
 
@@ -149,8 +181,8 @@ class StudentAI():
             if winner == current_player:
                 return current_player  # Return the winner
             elif winner == 0:
-                return None # Return None if there is a tie
+                return None  # Return None if there is a tie
 
             current_player = self.opponent[current_player]  # Switch turns
 
-        return None # Return for tie
+        return None  # Return for tie
