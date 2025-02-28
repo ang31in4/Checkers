@@ -27,82 +27,52 @@ class StudentAI():
 
         return self.mcts()
 
-    @staticmethod
-    def ucb(win_rate, total_simulations, parent_simulations, c=1.41):
-        """
-        Calculate the UCB1 score for a move.
-        :param win_rate: Win rate of the move
-        :param total_simulations: Total simulations for this move
-        :param parent_simulations: Total simulations for the parent node
-        :param c: Exploration constant
-        :return: UCB1 score
-        """
-        if total_simulations == 0:
-            return float('inf')  # Prioritize unexplored moves
-        return win_rate + c * math.sqrt(math.log(parent_simulations) / total_simulations)
-
     def mcts(self):
         """
-        Uses Monte Carlo Tree Search with UCB1 to determine the next best move.
+        Uses Monte Carlo Tree to determine next best move. A number of simulations
+        are ran for each possible move and a win-rate is determined. The move with
+        the highest win-rate is chosen.
 
-        :return: Best move found through MCTS
+        :return: best move found through MCTS
         """
         possible_moves = self.board.get_all_possible_moves(self.color)
         num_moves = sum(len(move_list) for move_list in possible_moves)
 
-        # If only one move is available, return it immediately
-        if num_moves == 1:
-            # Find the move and return it immediately
-            for move_list in possible_moves:
-                if move_list:  # Non-empty list
-                    return move_list[0]  # Return the first (and only) move
-
         # Set up MCTS parameters
+        best_move = None
+        best_win_rate = -1
+        simulations_total = 1000
+        simulations_per_move = simulations_total // num_moves
         time_limit = 15
 
-        # Start time
         start_time = time.time()
 
-        # Tracking statistics for UCB1
-        wins_per_move = defaultdict(int)
-        simulations_per_move = defaultdict(int)
-        parent_simulations = 0
+        for moves in possible_moves:
+            for move in moves:
+                wins = 0
+                total_simulations = 0
 
-        # Run MCTS while under time limit
-        while (time.time() - start_time) < time_limit:
-            best_ucb = -float('inf')
-            selected_move = None
+                # Run simulations for every possible move, while keeping under time limit
+                while total_simulations < simulations_per_move and (time.time() - start_time) < time_limit:
+                    winner = self.simulate_game(move)
+                    if winner == self.color:
+                        wins += 1
+                    total_simulations += 1
 
-            # Calculate UCB1 scores for all moves
-            for moves in possible_moves:
-                for move in moves:
-                    # Calculate UCB1 for this move
-                    if simulations_per_move[move] > 0:
-                        win_rate = wins_per_move[move] / simulations_per_move[move]
-                    else:
-                        win_rate = 0
+                # Calculate win rate
+                if total_simulations > 0:
+                    win_rate = wins / total_simulations
+                else:
+                    win_rate = 0
 
-                    ucb_score = self.ucb(win_rate, simulations_per_move[move], parent_simulations)
+                if win_rate > best_win_rate:
+                    best_win_rate = win_rate
+                    best_move = move
 
-                    # Select the move with the highest UCB1 score
-                    if ucb_score > best_ucb:
-                        best_ucb = ucb_score
-                        selected_move = move
-
-            # Run a simulation for the selected move
-            winner = self.simulate_game(selected_move)
-            if winner == self.color:
-                wins_per_move[selected_move] += 1
-
-            simulations_per_move[selected_move] += 1
-            parent_simulations += 1
-
-        # Choose the move with the highest win rate
-        best_move = max(wins_per_move, key=lambda m: wins_per_move[m] / simulations_per_move[m])
-
-        # Make the best move
+        # Make move
         self.board.make_move(best_move, self.color)
         return best_move
+
 
     def evaluate_board(self):
         """
@@ -150,6 +120,7 @@ class StudentAI():
                     ai_score += 15
 
         return ai_score - opponent_score  # Positive is good for AI, negative is bad
+
 
     def simulate_game(self, move):
         """
