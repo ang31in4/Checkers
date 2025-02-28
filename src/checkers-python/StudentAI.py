@@ -51,9 +51,12 @@ class StudentAI():
             for move in moves:
                 wins = 0
                 total_simulations = 0
+                good_position = True
 
                 # Run simulations for every possible move, while keeping under time limit
-                while total_simulations < simulations_per_move and (time.time() - start_time) < time_limit:
+                while total_simulations < simulations_per_move and good_position and (time.time() - start_time) < time_limit:
+                    # **Early pruning using evaluation function**
+                    good_position = self.evaluate_board(move)
                     winner = self.simulate_game(move)
                     if winner == self.color:
                         wins += 1
@@ -74,13 +77,16 @@ class StudentAI():
         return best_move
 
 
-    def evaluate_board(self):
+    def evaluate_board(self, move) -> bool:
         """
         Evaluates the current board state using a simple heuristic.
         Higher scores favor the AI, lower scores favor the opponent.
 
         :return: A numerical score representing board strength.
         """
+        temp_board = copy.deepcopy(self.board)  # Create a copy of current board
+        temp_board.make_move(move, self.color)  # Make parameter node AI's first move
+
         ai_pieces = 0
         ai_kings = 0
         opponent_pieces = 0
@@ -88,38 +94,72 @@ class StudentAI():
         ai_score = 0
         opponent_score = 0
 
-        for r in range(self.row):
-            for c in range(self.col):
-                piece = self.board.board[r][c]  # Get the piece at position (r, c)
+        for r in range(temp_board.row):
+            for c in range(temp_board.col):
+                piece = temp_board.board[r][c]  # Get the piece at position (r, c)
                 if piece == self.color:  # AI's normal piece
                     ai_pieces += 1
                     ai_score += 5
-                    if 2 <= r < self.row - 2:  # Reward center control
+                    if 2 <= r < temp_board.row - 2:  # Reward center control
                         ai_score += 2
-                    if c == 0 or c == self.col - 1:  # Penalize pieces on the leftmost or rightmost columns
+                    if c == 0 or c == temp_board.col - 1:  # Penalize pieces on the leftmost or rightmost columns
                         ai_score -= 3
-                    if r < 2 or r > self.row - 3:  # Encourage backline or deep push
+                    if r < 2 or r > temp_board.row - 3:  # Encourage backline or deep push
                         ai_score += 4
+
+                    # Reward advancing pieces (aggressive push towards opponent)
+                    if r < temp_board.row // 2:
+                        ai_score += 1
+
+                    # Reward pieces that are threatening an opponent piece
+                    if any(temp_board.board[r + dr][c + dc] == self.opponent[self.color]
+                           for dr, dc in [(1, 1), (1, -1)]):
+                        ai_score += 3
+
+                    # Penalize exposed pieces (that can be captured by the opponent)
+                    if any(temp_board.board[r + dr][c + dc] == self.opponent[self.color]
+                           for dr, dc in [(-1, 1), (-1, -1)]):  # Opponent's piece can capture
+                        ai_score -= 5
+
                 elif piece == self.color + 2:  # AI's king
                     ai_kings += 1
                     ai_score += 10
+                    # Kings are aggressive if closer to the opponent's side
+                    if r < temp_board.row // 2:
+                        ai_score += 2
+                    # Reward kings that are threatening opponent pieces
+                    if any(temp_board.board[r + dr][c + dc] == self.opponent[self.color] + 2
+                           for dr, dc in [(1, 1), (1, -1)]):
+                        ai_score += 5
+
+                    # Penalize kings in vulnerable positions (can be captured)
+                    if any(temp_board.board[r + dr][c + dc] == self.opponent[self.color]
+                           for dr, dc in [(-1, 1), (-1, -1)]):  # Opponent's piece can capture
+                        ai_score -= 3
+
                 elif piece == self.opponent[self.color]:  # Opponent's normal piece
                     opponent_pieces += 1
                     opponent_score += 5
-                    if 2 <= r < self.row - 2:
+                    if 2 <= r < temp_board.row - 2:
                         opponent_score += 2
+
                 elif piece == self.opponent[self.color] + 2:  # Opponent's king
                     opponent_kings += 1
                     opponent_score += 10
 
-        # Additional scoring for captures
-        possible_moves = self.board.get_all_possible_moves(self.color)
+        # Additional scoring for captures (aggressive actions)
+        possible_moves = temp_board.get_all_possible_moves(self.color)
         for move_list in possible_moves:
             for move in move_list:
                 if len(move[1]) > 1:  # Multi-jump capture
                     ai_score += 15
 
-        return ai_score - opponent_score  # Positive is good for AI, negative is bad
+        temp_score = ai_score - opponent_score  # Positive is good for AI, negative is bad
+        print(temp_score)
+        if temp_score < -40:  # If the move results in a bad position, assume a loss
+            return False
+        else:
+            return True
 
 
     def simulate_game(self, move):
@@ -132,11 +172,6 @@ class StudentAI():
         temp_board = copy.deepcopy(self.board)  # Create a copy of current board
         temp_board.make_move(move, self.color)  # Make parameter node AI's first move
         current_player = self.opponent[self.color]  # Give opponent next move
-
-        # **Early pruning using evaluation function**
-        temp_score = self.evaluate_board()
-        if temp_score < -10:  # If the move results in a bad position, assume a loss
-            return self.opponent[self.color]
 
         # Keep playing moves until there is a winner or tie
         while True:
