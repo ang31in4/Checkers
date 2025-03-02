@@ -46,7 +46,7 @@ def filter_moves(board, my_color, opp_color):
 
     # return list of moves that don't result in captures (or list of moves
     # that result in the least amount of captures)
-    if result == []:
+    if not result:
         return captures[sorted(captures.keys())[0]]
     return result
 
